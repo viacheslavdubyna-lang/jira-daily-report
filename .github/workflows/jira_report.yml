@@ -2,8 +2,13 @@ name: Jira Daily Report → Slack
 
 on:
   schedule:
+    # Каждый день в 9:00 по Киеву (UTC+3 = 6:00 UTC) вт-сб
     - cron: "0 6 * * 2-6"
   workflow_dispatch:
+
+# Это предотвращает отключение cron GitHub'ом
+permissions:
+  contents: write
 
 jobs:
   send-report:
@@ -11,12 +16,24 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
+
+      - name: Keep workflow alive (prevents GitHub from disabling schedule)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          echo "Last run: $(date -u)" > .last_run
+          git add .last_run
+          git diff --staged --quiet || git commit -m "chore: workflow keep-alive $(date -u +%Y-%m-%d)"
+          git push || true
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
       - name: Install dependencies
         run: pip install requests
+
       - name: Run Jira report script
         env:
           JIRA_DOMAIN:       ${{ secrets.JIRA_DOMAIN }}
