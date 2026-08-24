@@ -1,5 +1,5 @@
 import os, requests
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from collections import defaultdict
 
 JIRA_DOMAIN   = os.environ["JIRA_DOMAIN"]
@@ -42,10 +42,27 @@ def get_last_comment(issue_key):
     except Exception:
         return ""
 
-def fetch_issues():
+def get_report_window():
+    """
+    Скрипт запускается по расписанию вт-сб. Раньше окно считалось как
+    "с полуночи сегодняшнего дня" — и во вторник отчёт видел только то,
+    что обновилось после полуночи вторника. Всё, что происходило в субботу
+    днём, в воскресенье и в понедельник, никогда не попадало ни в один
+    отчёт.
+
+    Поэтому во вторник окно расширяется на 3 дня назад (захватывает
+    субботу, воскресенье, понедельник), а в остальные рабочие дни (ср-сб) —
+    на 1 день назад (полный вчерашний день, включая вечер).
+    """
+    now = datetime.now(timezone.utc)
+    lookback_days = 3 if now.weekday() == 1 else 1  # weekday(): Mon=0 ... 1=вторник
+    start = now - timedelta(days=lookback_days)
+    return now, start, lookback_days
+
+def fetch_issues(start):
     project_list = ", ".join(PROJECTS)
-    today = datetime.now().strftime("%Y-%m-%d")
-    jql = f'project in ({project_list}) AND updated >= "{today}" ORDER BY assignee ASC, status ASC'
+    start_str = start.strftime("%Y-%m-%d")
+    jql = f'project in ({project_list}) AND updated >= "{start_str}" ORDER BY assignee ASC, status ASC'
     all_issues = []
     next_token = None
 
@@ -77,8 +94,12 @@ def status_emoji(name):
         if k in key: return e
     return "⬜"
 
-def build_slack_message(issues):
-    today = datetime.now(timezone.utc).strftime("%d.%m.%Y")
+def build_slack_message(issues, now, start, lookback_days):
+    if lookback_days == 1:
+        period_label = (now - timedelta(days=1)).strftime("%d.%m.%Y")
+    else:
+        period_label = f"{start.strftime('%d.%m.%Y')} – {(now - timedelta(days=1)).strftime('%d.%m.%Y')}"
+
     grouped = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
     for issue in issues:
         f = issue["fields"]
@@ -88,7 +109,7 @@ def build_slack_message(issues):
         grouped[a][p][s].append((issue["key"], f.get("summary", "")))
 
     blocks = [
-        {"type":"header","text":{"type":"plain_text","text":f"📊 Daily Report — {today}","emoji":True}},
+        {"type":"header","text":{"type":"plain_text","text":f"📊 Daily Report — {period_label}","emoji":True}},
         {"type":"divider"}
     ]
 
@@ -108,7 +129,7 @@ def build_slack_message(issues):
         blocks.append({"type":"divider"})
 
     if len(blocks) == 2:
-        blocks.append({"type":"section","text":{"type":"mrkdwn","text":"🕳 Сегодня обновлённых задач не найдено."}})
+        blocks.append({"type":"section","text":{"type":"mrkdwn","text":"🕳 За этот период обновлённых задач не найдено."}})
     return blocks
 
 def send_to_slack(blocks):
@@ -117,9 +138,11 @@ def send_to_slack(blocks):
 
 if __name__ == "__main__":
     print("🔍 Забираем задачи из Jira...")
-    issues = fetch_issues()
+    now, start, lookback_days = get_report_window()
+    print(f"   Окно: c {start.strftime('%Y-%m-%d %H:%M UTC')} (назад на {lookback_days} дн.)")
+    issues = fetch_issues(start)
     print(f"   Итого: {len(issues)} задач")
     print("📝 Формируем отчёт...")
-    blocks = build_slack_message(issues)
+    blocks = build_slack_message(issues, now, start, lookback_days)
     print("📤 Отправляем в Slack...")
     send_to_slack(blocks)

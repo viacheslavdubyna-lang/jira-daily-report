@@ -2,11 +2,11 @@ name: Jira Daily Report → Slack
 
 on:
   schedule:
-    # Каждый день в 9:00 по Киеву (UTC+3 = 6:00 UTC) вт-сб
-    - cron: "0 6 * * 2-6"
+    # 10:45 по Риге (сейчас лето, UTC+3 -> 07:45 UTC), вт-сб.
+    # ВАЖНО: при переходе на зимнее время (UTC+2) поменять на "45 8 * * 2-6".
+    - cron: "45 7 * * 2-6"
   workflow_dispatch:
 
-# Это предотвращает отключение cron GitHub'ом
 permissions:
   contents: write
 
