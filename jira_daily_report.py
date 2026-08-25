@@ -6,7 +6,6 @@ JIRA_DOMAIN   = os.environ["JIRA_DOMAIN"]
 JIRA_EMAIL    = os.environ["JIRA_EMAIL"]
 JIRA_TOKEN    = os.environ["JIRA_TOKEN"]
 SLACK_WEBHOOK = os.environ.get("SLACK_WEBHOOK_URL", )
-print(f"DEBUG: domain={JIRA_DOMAIN!r} email={JIRA_EMAIL!r} token_len={len(JIRA_TOKEN)}")
 
 PROJECTS = ["AT", "CT", "IT", "MED", "SMM", "DS", "CRM", "NTFRD"]
 STATUS_EMOJI = {"done":"✅","in progress":"🔄","blocked":"🚫","to do":"📋","in review":"👀"}
@@ -144,11 +143,6 @@ def send_to_slack(blocks):
 
 if __name__ == "__main__":
     print("🔍 Забираем задачи из Jira...")
-    try:
-        me = jira_get("/myself")
-        print(f"DEBUG whoami: email={me.get('emailAddress')!r} name={me.get('displayName')!r} accountId={me.get('accountId')!r}")
-    except Exception as e:
-        print(f"DEBUG whoami FAILED: {e}")
     now, start, lookback_days = get_report_window()
     print(f"   Окно: c {start.strftime('%Y-%m-%d %H:%M UTC')} (назад на {lookback_days} дн.)")
     issues = fetch_issues(start)
