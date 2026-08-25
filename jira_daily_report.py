@@ -6,6 +6,7 @@ JIRA_DOMAIN   = os.environ["JIRA_DOMAIN"]
 JIRA_EMAIL    = os.environ["JIRA_EMAIL"]
 JIRA_TOKEN    = os.environ["JIRA_TOKEN"]
 SLACK_WEBHOOK = os.environ.get("SLACK_WEBHOOK_URL", )
+print(f"DEBUG: domain={JIRA_DOMAIN!r} email={JIRA_EMAIL!r} token_len={len(JIRA_TOKEN)}")
 
 PROJECTS = ["AT", "CT", "IT", "MED", "SMM", "DS", "CRM", "NTFRD"]
 STATUS_EMOJI = {"done":"✅","in progress":"🔄","blocked":"🚫","to do":"📋","in review":"👀"}
