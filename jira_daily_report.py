@@ -130,7 +130,18 @@ def build_slack_message(issues, now, start, lookback_days):
                     line = f"• <{url}|{key}> — {summary}"
                     if comment: line += f"\n  _{comment}_"
                     lines.append(line)
-            blocks.append({"type":"section","text":{"type":"mrkdwn","text":"\n".join(lines)}})
+            # Slack режет текст блока на 3000 символов — разбиваем длинные
+            # списки задач на несколько блоков помельче.
+            current, current_len = [], 0
+            for line in lines:
+                line_len = len(line) + 1
+                if current and current_len + line_len > 2900:
+                    blocks.append({"type":"section","text":{"type":"mrkdwn","text":"\n".join(current)}})
+                    current, current_len = [], 0
+                current.append(line)
+                current_len += line_len
+            if current:
+                blocks.append({"type":"section","text":{"type":"mrkdwn","text":"\n".join(current)}})
         blocks.append({"type":"divider"})
 
     if len(blocks) == 2:
@@ -138,8 +149,14 @@ def build_slack_message(issues, now, start, lookback_days):
     return blocks
 
 def send_to_slack(blocks):
-    resp = requests.post(SLACK_WEBHOOK, json={"blocks": blocks}, timeout=10)
-    print("✅ Отправлено в Slack!" if resp.status_code == 200 else f"❌ Slack: {resp.status_code} {resp.text}")
+    # У Slack лимит 50 блоков на сообщение — при большом отчёте разбиваем
+    # на несколько сообщений по 45 блоков.
+    CHUNK = 45
+    chunks = [blocks[i:i+CHUNK] for i in range(0, len(blocks), CHUNK)] or [blocks]
+    for i, chunk in enumerate(chunks, 1):
+        resp = requests.post(SLACK_WEBHOOK, json={"blocks": chunk}, timeout=10)
+        suffix = f" (часть {i}/{len(chunks)})" if len(chunks) > 1 else ""
+        print(f"✅ Отправлено в Slack!{suffix}" if resp.status_code == 200 else f"❌ Slack: {resp.status_code} {resp.text}{suffix}")
 
 if __name__ == "__main__":
     print("🔍 Забираем задачи из Jira...")
